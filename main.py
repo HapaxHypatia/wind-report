@@ -1,17 +1,19 @@
 # webscraper for 2 weather sites
+from dotenv import load_dotenv
 import datetime
 import os
 import ssl
-
 import requests
 import json
 import smtplib
 from email.message import EmailMessage
 
+
 # TODO scrape BOM data
 # TODO re-create graph from data? Or webscrape graph?
-# TODO Send email with report
 # TODO schedule the script to run on certain days
+
+load_dotenv(dotenv_path=".env")
 
 
 def get_request(req_type, location, payload):
@@ -87,7 +89,9 @@ if __name__ == '__main__':
     else:
         safeCruising = True
 
+    open("report.txt", 'w').close()
     with open('report.txt', 'a') as file:
+
         file.write(f"Forecast Report on {datestring}:\n\n")
         if safeCruising:
             file.write("Looks safe to cruise this weekend!\n\n")
@@ -124,5 +128,3 @@ if __name__ == '__main__':
             print("Email sent.")
         except Exception as e:
             print(e)
-
-
