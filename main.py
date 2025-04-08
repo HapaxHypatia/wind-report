@@ -7,13 +7,35 @@ import requests
 import json
 import smtplib
 from email.message import EmailMessage
+from selenium import webdriver
+from selenium.common import NoSuchElementException, StaleElementReferenceException
+from selenium.webdriver.common.by import By
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 # TODO scrape BOM data
 # TODO re-create graph from data? Or webscrape graph?
 # TODO schedule the script to run on certain days
 
-load_dotenv(dotenv_path=".env")
+
+def scrapeBOM():
+    driver = webdriver.Chrome()
+    driver.set_page_load_timeout(60)
+
+    driver.get("http://www.bom.gov.au/qld/forecasts/moreton-bay.shtml")
+    content = driver.find_element(by=By.ID, value="content")
+    syn = content.find_element(by=By.CLASS_NAME, value="synopsis")
+    syn_elements = syn.find_elements(by=By.XPATH, value=".//*")
+    result = []
+    for item in syn_elements:
+        result.append(item.text)
+    days = content.find_elements(by=By.CLASS_NAME, value="day")
+    for item in days:
+        result.append('\n')
+        info = item.find_elements(by=By.XPATH, value=".//*")
+        result += ([i.text for i in info])
+    return result
 
 
 def get_request(req_type, location, payload):
@@ -45,6 +67,7 @@ def get_forecast_graph(startDate, graph_type, days):
     }
     return get_request("weather", 8629, payload)
 
+
 def get_units():
     payload = {
         "units": {
@@ -57,12 +80,20 @@ def get_units():
             "riverHeight": "ft",
             "pressure": "hpa",
             "cloud": "oktas"
+        }
     }
-  }
 
 
 if __name__ == '__main__':
-    # locationID = 8629
+    open("report.txt", 'w').close()
+
+    BOM = scrapeBOM()
+    with open('report.txt', 'a') as file:
+        file.write(f"Moreton Bay Marine Forecast from BOM\n\n")
+        file.write("\n".join(BOM))
+        file.write('\n\n\n')
+
+    load_dotenv(dotenv_path=".env")
     apiKey = os.environ.get("API_KEY")
 
     today = datetime.date.today()
@@ -80,8 +111,6 @@ if __name__ == '__main__':
     data = json.loads(jsonContent)
     days = data['forecasts']['wind']["days"]
 
-    # TODO logic to check if it is good weather, add a summary at top of report
-
     entries = [e for d in days for e in d['entries']]
     windSpeeds = [e['speed'] for e in entries]
     if max(windSpeeds) > 15:
@@ -89,10 +118,8 @@ if __name__ == '__main__':
     else:
         safeCruising = True
 
-    open("report.txt", 'w').close()
     with open('report.txt', 'a') as file:
-
-        file.write(f"Forecast Report on {datestring}:\n\n")
+        file.write(f"Willy Weather Wind Peel Island Forecast Report on {datestring}:\n\n")
         if safeCruising:
             file.write("Looks safe to cruise this weekend!\n\n")
         for d in days:
@@ -107,7 +134,7 @@ if __name__ == '__main__':
     port = os.environ.get("PORT")  # For SSL
     smtp_server = os.environ.get("SERVER")
     sender_email = os.environ.get("EMAIL")  # Enter your address
-    receiver_email = os.environ.get("RECIPIENTS")# Enter receiver address
+    receiver_email = os.environ.get("RECIPIENTS")
     password = os.environ.get("PASSWORD")
 
     textfile = "report.txt"
@@ -128,3 +155,4 @@ if __name__ == '__main__':
             print("Email sent.")
         except Exception as e:
             print(e)
+
