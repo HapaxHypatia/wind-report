@@ -7,6 +7,8 @@ import requests
 import json
 import smtplib
 from email.message import EmailMessage
+
+from matplotlib import ticker
 from selenium import webdriver
 from selenium.common import NoSuchElementException, StaleElementReferenceException
 from selenium.webdriver.common.by import By
@@ -15,12 +17,16 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as plticker
 from matplotlib.markers import MarkerStyle
+import matplotlib.dates as mdates
+from datetime import date, datetime, timezone, timedelta
 
 # TODO schedule the script to run on certain days
-# TODO day/night lines in graph
-# TODO populate graph data from api request
+# TODO day/night lines in graph (shade between certain minor ticks)
 # TODO data point labels should be direction and strength (e.g.'gentle SSE')
 # TODO data point labels should be greyed out and not overlap each other
+# TODO generate graph from forecast data, without a second call to get graph data
+# TODO formatting of major x ticks
+
 
 def scrapeBOM():
     driver = webdriver.Chrome()
@@ -90,26 +96,65 @@ def get_units():
 def draw_graph(data, x_list, y_list):
     def rotate_marker(marker, degrees):
         rotated_marker = copy.deepcopy(marker)
-        # rotated_marker._transform = rotated_marker.get_transform().rotate_deg(degrees)
         rotated_marker = rotated_marker.rotated(deg=degrees)
-        rotated_marker
         return rotated_marker
 
     arrow = u'$\u2191$'
-    fig, ax = plt.subplots()
-    fig.set_figwidth(10)
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(15, 6))
+    hour_locator = mdates.HourLocator()
+    hour_formatter = mdates.DateFormatter("%H:%M")
+    day_locater = mdates.DayLocator()
+
+    # Set up xticks: major
+    ax.set_xlim(x_list[0]-timedelta(minutes=30), x_list[-1]+timedelta(minutes=30))
+    ax.xaxis.set_major_locator(hour_locator)
+    ax.xaxis.set_major_formatter(hour_formatter)
+    ax.tick_params("x", which="major", rotation=45)
+
+    days = ax.get_xticks()[24::24]
+    for loc in days:
+        ax.axvline(loc)
+    for x0, x1 in zip(days[::2], days[1::2]):
+        plt.axvspan(x0, x1, color='black', alpha=0.1, zorder=0)
+
+    # Set up secondary axis
+    secax = ax.secondary_xaxis('top')
+    secax.xaxis.set_major_locator(mdates.DayLocator())
+    secax.xaxis.set_minor_locator(mdates.HourLocator(byhour=12))
+
+    secax.xaxis.set_major_formatter(ticker.NullFormatter())
+    secax.xaxis.set_minor_formatter(mdates.DateFormatter('%d %b'))
+
+    # secticks = secax.get_xticks()
+    # print(secticks)
+    # for x0, x1 in zip(secticks[::2], secticks[1::2]):
+    #     plt.axvspan(x0, x1, color='black', alpha=0.1, zorder=0)
+    # secax.set_xticks(secticks)
+
+    # Remove the tick lines
+    secax.tick_params(axis='x', which='minor', tick1On=False, tick2On=False)
+    secax.tick_params(axis='x', which='major', tick1On=False, tick2On=False)
+
+    # Align the minor tick label
+    for label in secax.get_xticklabels(minor=True):
+        label.set_horizontalalignment('right')
+
     ax.plot(x_list, y_list)
+
+    # Place markers
     for x, y, dir_val, str_val in data:
         arrow_marker = mpl.markers.MarkerStyle(marker=arrow)
-        m = rotate_marker(arrow_marker, dir_val)
-        ax.scatter(x, y, marker=m, color=colours[str_val], s=200)
-        plt.annotate(str(y), (x, y), textcoords="offset points", xytext=(0,10))
+        # TODO make marker opaque
+        m = rotate_marker(arrow_marker, -dir_val)
+        ax.scatter(x, y, marker=m, color=str_val['colour'], s=200)
+
+    # Set up y axis
     plt.ylim(0, 40)
-    ax.tick_params(axis='x', length=0)
-    ax.set_xticklabels('')
+    yloc = plticker.MultipleLocator(base=10.0)
+    ax.yaxis.set_major_locator(yloc)
     ax.grid(visible=True, which='major', axis='y')
-    loc = plticker.MultipleLocator(base=10.0)
-    ax.yaxis.set_major_locator(loc)
+
+    # Save & display graph
     fig1 = plt.gcf()
     fig1.savefig('wind.png')
     plt.show()
@@ -119,120 +164,77 @@ if __name__ == '__main__':
     load_dotenv(dotenv_path=".env")
     open("report.txt", 'w').close()
 
-    time = [
-        1744070400,
-        1744074000,
-        1744077600,
-        1744081200,
-        1744084800,
-        1744088400,
-        1744092000,
-        1744095600,
-        1744099200,
-        1744102800,
-        1744106400,
-        1744110000,
-        1744113600,
-        1744117200,
-        1744120800,
-        1744124400,
-        1744128000,
-        1744131600,
-        1744135200,
-        1744138800,
-        1744142400,
-        1744146000,
-        1744149600,
-        1744153200
-    ]
-    speed = [
-        9.7,
-        5.1,
-        5.4,
-        5.8,
-        6,
-        6.4,
-        6.8,
-        7.2,
-        11.5,
-        12.6,
-        12.6,
-        12.4,
-        12.2,
-        12.1,
-        12.4,
-        12.4,
-        12.4,
-        12.8,
-        13,
-        12.4,
-        8.2,
-        8.6,
-        8.4,
-        8]
-    direction = [
-        129,
-        145,
-        151,
-        156,
-        161,
-        157,
-        153,
-        148,
-        140,
-        131,
-        123,
-        122,
-        121,
-        118,
-        120,
-        122,
-        126,
-        130,
-        135,
-        139,
-        143,
-        148,
-        151,
-        156
-    ]
-    colours = ['#F1F2F3', '#d1ef51', '#a5de37', '#48ad00', '#0ec1f2', '#1896eb', '#226be4', '#1950ab']
-    cutoffs = [.6, 6.8, 10.7, 15.6, 21, 27, 33.4, 40.4]
-    strength = []
-    for y in speed:
-        for i, knots in enumerate(cutoffs):
-            if y < knots:
-                strength.append(i)
-                break
-
-    data = zip(time, speed, direction, strength)
-    draw_graph(data, time, speed)
-    #
     # BOM = scrapeBOM()
     # with open('report.txt', 'a') as file:
     #     file.write(f"Moreton Bay Marine Forecast from BOM\n\n")
     #     file.write("\n".join(BOM))
     #     file.write('\n\n\n')
     #
-    # apiKey = os.environ.get("API_KEY")
-    #
-    # today = datetime.date.today()
-    # datestring = today.strftime("%a %d %b %Y")
-    # day, date, month, year = datestring.split()
-    #
-    # if day == "wed":
-    #     offset = 3
-    # if day == "fri":
-    #     offset = 1
-    # else:
-    #     offset = 0
-    # startDate = today + datetime.timedelta(offset)
-    # jsonContent = get_forecast(startDate, "wind", 2)
-    # data = json.loads(jsonContent)
-    # days = data['forecasts']['wind']["days"]
-    #
+    apiKey = os.environ.get("API_KEY")
+
+    today = date.today()
+    datestring = today.strftime("%a %d %b %Y")
+    day, date, month, year = datestring.split()
+
+    if day == "wed":
+        offset = 3
+    if day == "fri":
+        offset = 1
+    else:
+        offset = 1
+    startDate = today + timedelta(offset)
+    # forecastJson = get_forecast(startDate, "wind", 2)
+    # forecastData = json.loads(forecastJson)
+    # days = forecastData['forecasts']['wind']["days"]
     # entries = [e for d in days for e in d['entries']]
     # windSpeeds = [e['speed'] for e in entries]
+
+    graphJson = get_forecast_graph(startDate, "wind", 3)
+    graphData = json.loads(graphJson)
+    graphDays = graphData['forecastGraphs']['wind']['dataConfig']['series']['groups']
+    times = []
+    speeds = []
+    degrees = []
+    for i, day in enumerate(graphDays):
+        times += [datetime.fromtimestamp(point['x'], tz=timezone.utc) for point in day['points']]
+        speeds += ([point['y'] for point in day['points']])
+        degrees += ([point['direction'] for point in day['points']])
+    cutoffs = [
+        {'cutoff': .6,
+         'colour': '#F1F2F3',
+         'description': 'calm'},
+        {'cutoff': 6.8,
+         'colour': '#d1ef51',
+         'description': 'light'},
+        {'cutoff': 10.7,
+         'colour': '#a5de37',
+         'description': 'gentle'},
+        {'cutoff': 15.6,
+         'colour': '#48ad00',
+         'description': 'moderate'},
+        {'cutoff': 21,
+         'colour': '#0ec1f2',
+         'description': 'fresh'},
+        {'cutoff': 27,
+         'colour': '#1896eb',
+         'description': 'strong'},
+        {'cutoff': 33.4,
+         'colour': '#226be4',
+         'description': 'near gale'},
+        {'cutoff': 40.4,
+         'colour': '#1950ab',
+         'description': 'gale'},
+        ]
+    strengths = []
+    for y in speeds:
+        for item in cutoffs:
+            if y < item['cutoff']:
+                strengths.append(item)
+                break
+
+    data = zip(times, speeds, degrees, strengths)
+    draw_graph(data, times, speeds)
+
     # if max(windSpeeds) > 15:
     #     safeCruising = False
     # else:
