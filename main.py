@@ -1,18 +1,20 @@
-# webscraper for 2 weather sites
+"""
+Script to get forecast data from Willy Weather api and BOM website and send a
+boating forecast for the weekend by email on Wednesdays and Fridays.
+"""
+
 from dotenv import load_dotenv
-import datetime
 import os
-import ssl
+
+# BOM Scrape
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+
+# Willy Weather
 import requests
 import json
-import smtplib
-from email.message import EmailMessage
-
-from matplotlib import ticker
-from selenium import webdriver
-from selenium.common import NoSuchElementException, StaleElementReferenceException
-from selenium.webdriver.common.by import By
 import copy
+from matplotlib import ticker
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as plticker
@@ -20,12 +22,18 @@ from matplotlib.markers import MarkerStyle
 import matplotlib.dates as mdates
 from datetime import date, datetime, timezone, timedelta
 
+# Email
+import ssl
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+
 # TODO schedule the script to run on certain days
 # TODO day/night lines in graph (shade between certain minor ticks)
 # TODO data point labels should be direction and strength (e.g.'gentle SSE')
 # TODO data point labels should be greyed out and not overlap each other
 # TODO generate graph from forecast data, without a second call to get graph data
-# TODO formatting of major x ticks
 
 
 def scrapeBOM():
@@ -120,20 +128,12 @@ def draw_graph(data, x_list, y_list):
     # Set up secondary axis
     secax = ax.secondary_xaxis('top')
     secax.xaxis.set_major_locator(mdates.DayLocator())
-    secax.xaxis.set_minor_locator(mdates.HourLocator(byhour=12))
-
     secax.xaxis.set_major_formatter(ticker.NullFormatter())
-    secax.xaxis.set_minor_formatter(mdates.DateFormatter('%d %b'))
-
-    # secticks = secax.get_xticks()
-    # print(secticks)
-    # for x0, x1 in zip(secticks[::2], secticks[1::2]):
-    #     plt.axvspan(x0, x1, color='black', alpha=0.1, zorder=0)
-    # secax.set_xticks(secticks)
-
-    # Remove the tick lines
-    secax.tick_params(axis='x', which='minor', tick1On=False, tick2On=False)
     secax.tick_params(axis='x', which='major', tick1On=False, tick2On=False)
+
+    secax.xaxis.set_minor_locator(mdates.HourLocator(byhour=12))
+    secax.xaxis.set_minor_formatter(mdates.DateFormatter('%d %b'))
+    secax.tick_params(axis='x', which='minor', tick1On=False, tick2On=False)
 
     # Align the minor tick label
     for label in secax.get_xticklabels(minor=True):
@@ -141,37 +141,37 @@ def draw_graph(data, x_list, y_list):
 
     ax.plot(x_list, y_list)
 
-    # Place markers
-    for x, y, dir_val, str_val in data:
-        arrow_marker = mpl.markers.MarkerStyle(marker=arrow)
-        # TODO make marker opaque
-        m = rotate_marker(arrow_marker, -dir_val)
-        ax.scatter(x, y, marker=m, color=str_val['colour'], s=200)
-
     # Set up y axis
     plt.ylim(0, 40)
     yloc = plticker.MultipleLocator(base=10.0)
     ax.yaxis.set_major_locator(yloc)
     ax.grid(visible=True, which='major', axis='y')
 
+    # Place markers
+    for x, y, dir_val, str_val in data:
+        arrow_marker = mpl.markers.MarkerStyle(marker=arrow)
+        m = rotate_marker(arrow_marker, -dir_val)
+        ax.scatter(x, y, marker=m, color=str_val['colour'], s=200, zorder=-1)
+
     # Save & display graph
     fig1 = plt.gcf()
     fig1.savefig('wind.png')
-    plt.show()
+    # plt.show()
 
 
 if __name__ == '__main__':
     load_dotenv(dotenv_path=".env")
     open("report.txt", 'w').close()
 
-    # BOM = scrapeBOM()
-    # with open('report.txt', 'a') as file:
-    #     file.write(f"Moreton Bay Marine Forecast from BOM\n\n")
-    #     file.write("\n".join(BOM))
-    #     file.write('\n\n\n')
-    #
-    apiKey = os.environ.get("API_KEY")
+    # Scrape BOM forecast & write to report ----------------------------------------------------------------------------
+    BOM = scrapeBOM()
+    with open('report.txt', 'a') as file:
+        file.write(f"Moreton Bay Marine Forecast from BOM\n\n")
+        file.write("\n".join(BOM))
+        file.write('\n\n\n')
 
+    # Get graph data from Willy Weather & save to file -----------------------------------------------------------------
+    apiKey = os.environ.get("API_KEY")
     today = date.today()
     datestring = today.strftime("%a %d %b %Y")
     day, date, month, year = datestring.split()
@@ -183,11 +183,6 @@ if __name__ == '__main__':
     else:
         offset = 1
     startDate = today + timedelta(offset)
-    # forecastJson = get_forecast(startDate, "wind", 2)
-    # forecastData = json.loads(forecastJson)
-    # days = forecastData['forecasts']['wind']["days"]
-    # entries = [e for d in days for e in d['entries']]
-    # windSpeeds = [e['speed'] for e in entries]
 
     graphJson = get_forecast_graph(startDate, "wind", 3)
     graphData = json.loads(graphJson)
@@ -235,6 +230,13 @@ if __name__ == '__main__':
     data = zip(times, speeds, degrees, strengths)
     draw_graph(data, times, speeds)
 
+    # Get Forecast Data from Willy Weather -----------------------------------------------------------------------------
+    # forecastJson = get_forecast(startDate, "wind", 2)
+    # forecastData = json.loads(forecastJson)
+    # days = forecastData['forecasts']['wind']["days"]
+    # entries = [e for d in days for e in d['entries']]
+    # windSpeeds = [e['speed'] for e in entries]
+    #
     # if max(windSpeeds) > 15:
     #     safeCruising = False
     # else:
@@ -242,8 +244,8 @@ if __name__ == '__main__':
     #
     # with open('report.txt', 'a') as file:
     #     file.write(f"Willy Weather Wind Peel Island Forecast Report on {datestring}:\n\n")
-    #     if safeCruising:
-    #         file.write("Looks safe to cruise this weekend!\n\n")
+    #     # if safeCruising:
+    #     #     file.write("Looks safe to cruise this weekend!\n\n")
     #     for d in days:
     #         dateList = d['dateTime'].split()[0].split("-")
     #         dateObj = datetime.datetime(int(dateList[0]), int(dateList[1]), int(dateList[2]))
@@ -252,29 +254,54 @@ if __name__ == '__main__':
     #             timestring = ent['dateTime'][-8:-3]
     #             file.write(f"{timestring} {ent['speed']} knots, {ent['directionText']}\n")
     #         file.write('\n')
-    #
-    # port = os.environ.get("PORT")  # For SSL
-    # smtp_server = os.environ.get("SERVER")
-    # sender_email = os.environ.get("EMAIL")  # Enter your address
-    # receiver_email = os.environ.get("RECIPIENTS")
-    # password = os.environ.get("PASSWORD")
-    #
-    # textfile = "report.txt"
-    # # Open the plain text file whose name is in textfile for reading.
-    # with open(textfile) as fp:
-    #     # Create a text/plain message
-    #     msg = EmailMessage()
-    #     msg.set_content(fp.read())
-    # msg['Subject'] = 'Weather report'
-    # msg['From'] = sender_email
-    # msg['To'] = receiver_email
-    #
-    # context = ssl.create_default_context()
-    # with smtplib.SMTP_SSL(smtp_server, port, context=context, timeout=120) as server:
-    #     try:
-    #         server.login(sender_email, password)
-    #         server.send_message(msg, sender_email, receiver_email)
-    #         print("Email sent.")
-    #     except Exception as e:
-    #         print(e)
+
+    # Set environment variables for email ------------------------------------------------------------------------------
+    port = os.environ.get("PORT")  # For SSL
+    smtp_server = os.environ.get("SERVER")
+    sender_email = os.environ.get("EMAIL")  # Enter your address
+    receiver_email = os.environ.get("RECIPIENTS")
+    password = os.environ.get("PASSWORD")
+
+    # Create text content ----------------------------------------------------------------------------------------------
+    textfile = "report.txt"
+    with open(textfile) as fp:
+        text = "\n".join(fp.readlines())
+
+    # Set up email -----------------------------------------------------------------------------------------------------
+    message = MIMEMultipart()
+    message["Subject"] = "Wind Forecast"
+    message['From'] = sender_email
+    message['To'] = receiver_email
+
+    # Write the HTML part ----------------------------------------------------------------------------------------------
+    html = """
+            <html>
+            <body>
+                <img src="cid:graphImage">
+            </body>
+            </html>
+            """
+
+    # Add image --------------------------------------------------------------------------------------------------------
+    fp = open('wind.png', 'rb')
+    image = MIMEImage(fp.read())
+    fp.close()
+    image.add_header('Content-ID', '<graphImage>')
+    message.attach(image)
+
+    # Convert both parts to MIMEText objects and add them to the MIMEMultipart message ---------------------------------
+    part1 = MIMEText(text, "plain")
+    part2 = MIMEText(html, "html")
+    message.attach(part2)
+    message.attach(part1)
+
+    # Send email -------------------------------------------------------------------------------------------------------
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL(smtp_server, port, context=context, timeout=120) as server:
+        try:
+            server.login(sender_email, password)
+            server.send_message(message, sender_email, receiver_email)
+            print("Email sent.")
+        except Exception as e:
+            print(e)
 
