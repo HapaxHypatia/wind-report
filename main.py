@@ -34,6 +34,8 @@ from email.mime.multipart import MIMEMultipart
 # TODO data point labels should be greyed out and not overlap each other
 # TODO generate graph from forecast data, without a second call to get graph data
 # TODO Format forecast more nicely
+# TODO add my email for testing purposes
+# TODO run chrome headless
 
 
 def scrapeBOM():
@@ -48,13 +50,11 @@ def scrapeBOM():
     for item in syn_elements:
         result.append(item.text)
     days = content.find_elements(by=By.CLASS_NAME, value="day")
-    print(len(days))
     for d in days:
         result.append('\n')
         heading = d.find_element(by=By.XPATH, value=".//h2")
         info = d.find_elements(by=By.XPATH, value=".//dl")
         result.append(heading.text)
-        print(result)
         result += ([i.text for i in info])
     return result
 
@@ -175,65 +175,64 @@ if __name__ == '__main__':
         file.write('\n\n\n')
 
     # Get graph data from Willy Weather & save to file -----------------------------------------------------------------
-    # apiKey = os.environ.get("API_KEY")
-    # today = date.today()
-    # datestring = today.strftime("%a %d %b %Y")
-    # day, date, month, year = datestring.split()
-    # print(day)
-    #
-    # if day == "wed":
-    #     offset = 3
-    # if day == "fri":
-    #     offset = 1
-    # else:
-    #     offset = 1
-    # startDate = today + timedelta(offset)
-    #
-    # graphJson = get_forecast_graph(startDate, "wind", 3)
-    # graphData = json.loads(graphJson)
-    # graphDays = graphData['forecastGraphs']['wind']['dataConfig']['series']['groups']
-    # times = []
-    # speeds = []
-    # degrees = []
-    # for i, day in enumerate(graphDays):
-    #     times += [datetime.fromtimestamp(point['x'], tz=timezone.utc) for point in day['points']]
-    #     speeds += ([point['y'] for point in day['points']])
-    #     degrees += ([point['direction'] for point in day['points']])
-    # cutoffs = [
-    #     {'cutoff': .6,
-    #      'colour': '#F1F2F3',
-    #      'description': 'calm'},
-    #     {'cutoff': 6.8,
-    #      'colour': '#d1ef51',
-    #      'description': 'light'},
-    #     {'cutoff': 10.7,
-    #      'colour': '#a5de37',
-    #      'description': 'gentle'},
-    #     {'cutoff': 15.6,
-    #      'colour': '#48ad00',
-    #      'description': 'moderate'},
-    #     {'cutoff': 21,
-    #      'colour': '#0ec1f2',
-    #      'description': 'fresh'},
-    #     {'cutoff': 27,
-    #      'colour': '#1896eb',
-    #      'description': 'strong'},
-    #     {'cutoff': 33.4,
-    #      'colour': '#226be4',
-    #      'description': 'near gale'},
-    #     {'cutoff': 40.4,
-    #      'colour': '#1950ab',
-    #      'description': 'gale'},
-    #     ]
-    # strengths = []
-    # for y in speeds:
-    #     for item in cutoffs:
-    #         if y < item['cutoff']:
-    #             strengths.append(item)
-    #             break
-    #
-    # data = zip(times, speeds, degrees, strengths)
-    # draw_graph(data, times, speeds)
+    apiKey = os.environ.get("API_KEY")
+    today = date.today()
+    datestring = today.strftime("%a %d %b %Y")
+    day, date, month, year = datestring.split()
+
+    if day == "wed":
+        offset = 3
+    if day == "fri":
+        offset = 1
+    else:
+        offset = 1
+    startDate = today + timedelta(offset)
+
+    graphJson = get_forecast_graph(startDate, "wind", 3)
+    graphData = json.loads(graphJson)
+    graphDays = graphData['forecastGraphs']['wind']['dataConfig']['series']['groups']
+    times = []
+    speeds = []
+    degrees = []
+    for i, day in enumerate(graphDays):
+        times += [datetime.fromtimestamp(point['x'], tz=timezone.utc) for point in day['points']]
+        speeds += ([point['y'] for point in day['points']])
+        degrees += ([point['direction'] for point in day['points']])
+    cutoffs = [
+        {'cutoff': .6,
+         'colour': '#F1F2F3',
+         'description': 'calm'},
+        {'cutoff': 6.8,
+         'colour': '#d1ef51',
+         'description': 'light'},
+        {'cutoff': 10.7,
+         'colour': '#a5de37',
+         'description': 'gentle'},
+        {'cutoff': 15.6,
+         'colour': '#48ad00',
+         'description': 'moderate'},
+        {'cutoff': 21,
+         'colour': '#0ec1f2',
+         'description': 'fresh'},
+        {'cutoff': 27,
+         'colour': '#1896eb',
+         'description': 'strong'},
+        {'cutoff': 33.4,
+         'colour': '#226be4',
+         'description': 'near gale'},
+        {'cutoff': 40.4,
+         'colour': '#1950ab',
+         'description': 'gale'},
+        ]
+    strengths = []
+    for y in speeds:
+        for item in cutoffs:
+            if y < item['cutoff']:
+                strengths.append(item)
+                break
+
+    data = zip(times, speeds, degrees, strengths)
+    draw_graph(data, times, speeds)
 
     # Get Forecast Data from Willy Weather -----------------------------------------------------------------------------
     # forecastJson = get_forecast(startDate, "wind", 2)
@@ -253,7 +252,7 @@ if __name__ == '__main__':
     #     #     file.write("Looks safe to cruise this weekend!\n\n")
     #     for d in days:
     #         dateList = d['dateTime'].split()[0].split("-")
-    #         dateObj = datetime.datetime(int(dateList[0]), int(dateList[1]), int(dateList[2]))
+    #         dateObj = datetime(int(dateList[0]), int(dateList[1]), int(dateList[2]))
     #         file.write(f"{dateObj.strftime('%a %d %b %Y')}\n")
     #         for ent in d['entries']:
     #             timestring = ent['dateTime'][-8:-3]
@@ -300,14 +299,13 @@ if __name__ == '__main__':
     message.attach(part2)
     message.attach(part1)
 
-    # print(text)
     # Send email -------------------------------------------------------------------------------------------------------
-    # context = ssl.create_default_context()
-    # with smtplib.SMTP_SSL(smtp_server, port, context=context, timeout=120) as server:
-    #     try:
-    #         server.login(sender_email, password)
-    #         server.send_message(message, sender_email, receiver_email)
-    #         print("Email sent.")
-    #     except Exception as e:
-    #         print(e)
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL(smtp_server, port, context=context, timeout=120) as server:
+        try:
+            server.login(sender_email, password)
+            server.send_message(message, sender_email, receiver_email)
+            print("Email sent.")
+        except Exception as e:
+            print(e)
 
