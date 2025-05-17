@@ -34,7 +34,6 @@ from email.mime.multipart import MIMEMultipart
 # TODO data point labels should be greyed out and not overlap each other
 # TODO generate graph from forecast data, without a second call to get graph data
 # TODO Format forecast more nicely
-# TODO add my email for testing purposes
 # TODO run chrome headless
 
 
@@ -262,8 +261,8 @@ if __name__ == '__main__':
     # Set environment variables for email ------------------------------------------------------------------------------
     port = os.environ.get("PORT")  # For SSL
     smtp_server = os.environ.get("SERVER")
-    sender_email = os.environ.get("EMAIL")  # Enter your address
-    receiver_email = os.environ.get("RECIPIENTS")
+    sender_email = os.environ.get("EMAIL")
+    recipients = os.environ.get("RECIPIENT_LIST")
     password = os.environ.get("PASSWORD")
 
     # Create text content ----------------------------------------------------------------------------------------------
@@ -275,7 +274,7 @@ if __name__ == '__main__':
     message = MIMEMultipart()
     message["Subject"] = "Wind Forecast"
     message['From'] = sender_email
-    message['To'] = receiver_email
+    message['To'] = recipients
 
     # Write the HTML part ----------------------------------------------------------------------------------------------
     html = """
@@ -302,10 +301,11 @@ if __name__ == '__main__':
     # Send email -------------------------------------------------------------------------------------------------------
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL(smtp_server, port, context=context, timeout=120) as server:
-        try:
-            server.login(sender_email, password)
-            server.send_message(message, sender_email, receiver_email)
-            print("Email sent.")
-        except Exception as e:
-            print(e)
+        for r in recipients.split(","):
+            try:
+                server.login(sender_email, password)
+                server.send_message(message, sender_email, r)
+                print("Email sent.")
+            except Exception as e:
+                print(e)
 
