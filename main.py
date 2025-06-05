@@ -178,15 +178,13 @@ if __name__ == '__main__':
     today = date.today()
     datestring = today.strftime("%a %d %b %Y")
     day, date, month, year = datestring.split()
-
-    if day == "wed":
+    if day == "Wed":
         offset = 3
-    if day == "fri":
+    elif day == "Fri":
         offset = 1
     else:
-        offset = 1
-    startDate = today + timedelta(offset)
-
+        offset = 0
+    startDate = today + timedelta(days=offset)
     graphJson = get_forecast_graph(startDate, "wind", 3)
     graphData = json.loads(graphJson)
     graphDays = graphData['forecastGraphs']['wind']['dataConfig']['series']['groups']
@@ -274,7 +272,6 @@ if __name__ == '__main__':
     message = MIMEMultipart()
     message["Subject"] = "Wind Forecast"
     message['From'] = sender_email
-    message['To'] = recipients
 
     # Write the HTML part ----------------------------------------------------------------------------------------------
     html = """
@@ -303,6 +300,7 @@ if __name__ == '__main__':
     with smtplib.SMTP_SSL(smtp_server, port, context=context, timeout=120) as server:
         for r in recipients.split(","):
             try:
+                # message['To'] = r
                 server.login(sender_email, password)
                 server.send_message(message, sender_email, r)
                 print("Email sent.")
