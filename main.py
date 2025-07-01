@@ -106,8 +106,9 @@ def get_units():
 
 def draw_graph(data, x_list, y_list):
     def rotate_marker(marker, degrees):
+        degrees = degrees + 180 # add 180  deg because the data from the api is where the wind is coming from, not going to
         rotated_marker = copy.deepcopy(marker)
-        rotated_marker = rotated_marker.rotated(deg=degrees)
+        rotated_marker = rotated_marker.rotated(deg=0-degrees) # negative, because it seems to rotate anticlockwise?
         return rotated_marker
 
     arrow = u'$\u2191$'
@@ -153,7 +154,7 @@ def draw_graph(data, x_list, y_list):
     # Place markers
     for x, y, dir_val, str_val in data:
         arrow_marker = mpl.markers.MarkerStyle(marker=arrow)
-        m = rotate_marker(arrow_marker, -dir_val)
+        m = rotate_marker(arrow_marker, dir_val)
         ax.scatter(x, y, marker=m, color=str_val['colour'], s=200, zorder=-1)
 
     # Save & display graph
@@ -296,14 +297,14 @@ if __name__ == '__main__':
     message.attach(part1)
 
     # Send email -------------------------------------------------------------------------------------------------------
-    context = ssl.create_default_context()
-    with smtplib.SMTP_SSL(smtp_server, port, context=context, timeout=120) as server:
-        for r in recipients.split(","):
-            try:
-                # message['To'] = r
-                server.login(sender_email, password)
-                server.send_message(message, sender_email, r)
-                print("Email sent.")
-            except Exception as e:
-                print(e)
+    # context = ssl.create_default_context()
+    # with smtplib.SMTP_SSL(smtp_server, port, context=context, timeout=120) as server:
+    #     for r in recipients.split(","):
+    #         try:
+    #             # message['To'] = r
+    #             server.login(sender_email, password)
+    #             server.send_message(message, sender_email, r)
+    #             print("Email sent.")
+    #         except Exception as e:
+    #             print(e)
 
