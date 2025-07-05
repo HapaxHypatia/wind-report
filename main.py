@@ -55,6 +55,7 @@ def scrapeBOM():
         info = d.find_elements(by=By.XPATH, value=".//dl")
         result.append(heading.text)
         result += ([i.text for i in info])
+    driver.close()
     return result
 
 
